@@ -180,7 +180,7 @@ function StreamToStr(S: TStream): String;
 implementation
 
 uses
-  IdException, IdSocketHandle, SysUtils, TypInfo, WinSock;
+  IdException, IdExceptionCore, IdSocketHandle, SysUtils, TypInfo, WinSock;
 
 //******************************************************************************
 //* Unit Public functions & procedures                                         *
@@ -405,7 +405,8 @@ begin
 
     Self.Connection.Host := Conn.Location.Address;
     Self.Connection.Port := Conn.Location.Port;
-    Self.Connection.Connect(Self.Timeout);
+    Self.Connection.ConnectTimeout := Self.Timeout;
+    Self.Connection.Connect();
   finally
     Conn.Free;
   end;
@@ -434,12 +435,20 @@ begin
 end;
 
 procedure TClientTcpConnectionActor.ReceiveData(Timeout: Cardinal);
+var
+  Stream: TMemoryStream;
 begin
-  Self.Connection.ReadFromStack(false, Timeout, false);
-
-  if (Self.Connection.InputBuffer.Size > 0) then begin
-    Self.ReportReceivedData(Self.Connection.InputBuffer);
-    Self.Connection.InputBuffer.Remove(Self.Connection.InputBuffer.Size);
+  { TODO -omarcobreveglieri : Updated to the most recent Indy version - NEED TESTING! }
+  Stream := TMemoryStream.Create;
+  try
+    Self.Connection.ReadTimeout := Timeout;
+    Self.Connection.Socket.ReadStream(Stream);
+    if Stream.Size <= 0 then
+      Exit;
+    Stream.Position := 0;
+    Self.ReportReceivedData(Stream);
+  finally
+    Stream.Free;
   end;
 end;
 
@@ -491,7 +500,7 @@ end;
 
 procedure TClientTcpConnectionActor.WriteData(S: String);
 begin
-  Self.Connection.Write(S);
+  Self.Connection.Socket.Write(S);
 end;
 
 //* TClientTcpConnectionActor Private methods **********************************

@@ -13,7 +13,7 @@ interface
 
 uses
   ClientTcpConnectionActor, IdTcpServer, Ikaria, SyncObjs, TestIkaria,
-  TestFramework, Windows;
+  TestFramework, Windows, IdContext;
 
 type
   TestFunctions = class(TTestCase)
@@ -37,7 +37,7 @@ type
     Location:        TLocationTuple;
     TestTable:       TActorMessageTable;
 
-    procedure AckConnection(Thread: TIdPeerThread);
+    procedure AckConnection(Context: TIdContext);
     function  FindClosed(Msg: TTuple): Boolean;
     function  FindConnected(Msg: TTuple): Boolean;
     procedure MarkConnected(Msg: TTuple);
@@ -53,7 +53,7 @@ type
     TestData:     String;
     TimedOut:     Boolean;
 
-    procedure CollectTestData(Thread: TIdPeerThread);
+    procedure CollectTestData(Context: TIdContext);
     procedure Connect;
     procedure Disconnect;
     function  FindReceivedData(Msg: TTuple): Boolean;
@@ -86,8 +86,8 @@ type
     Server:        TIdTcpServer;
     TestData:      String;
 
-    procedure AckConnection(Peer: TIdPeerThread);
-    procedure RecordData(Peer: TIdPeerThread);
+    procedure AckConnection(Context: TIdContext);
+    procedure RecordData(Context: TIdContext);
     procedure CheckPortFree(Address: String; Port: Cardinal);
     procedure WaitFor(E: TEvent; Timeout: Cardinal; Msg: String);
   public
@@ -106,7 +106,8 @@ const
 implementation
 
 uses
-  Classes, Forms, IdException, Messages, SysUtils, IdTCPConnection;
+  Classes, Forms, IdException, IdExceptionCore, Messages, SysUtils,
+  IdSocketHandle;
 
 function Suite: ITestSuite;
 begin
@@ -207,28 +208,34 @@ end;
 
 //* TestTClientTcpConnectionActor Protected methods ****************************
 
-procedure TestTClientTcpConnectionActor.CollectTestData(Thread: TIdPeerThread);
+procedure TestTClientTcpConnectionActor.CollectTestData(Context: TIdContext);
 var
   S: TStringStream;
+  Stream: TMemoryStream;
 begin
   Self.ConnEvent.SetEvent;
 
-  S := TStringStream.Create('');
+  Stream := TMemoryStream.Create;
   try
+    S := TStringStream.Create;
     try
-      while (Self.ReceivedData = '') do begin
-        Thread.Connection.ReadFromStack(true, OneSecond, false);
-
-        S.CopyFrom(Thread.Connection.InputBuffer, 0);
-        Thread.Connection.InputBuffer.Remove(Thread.Connection.InputBuffer.Size);
-
-        Self.ReceivedData := Self.ReceivedData + S.DataString;
+      try
+        while True do
+        begin
+          Context.Connection.Socket.ReadStream(Stream);
+          if Stream.Size <= 0 then
+            Exit;
+          S.CopyFrom(Stream, Stream.Size);
+          Stream.Clear;
+        end;
+      except
+        on EIdConnClosedGracefully do;
       end;
-    except
-      on EIdConnClosedGracefully do;
+    finally
+      S.Free;
     end;
   finally
-    S.Free;
+    Stream.Free;
   end;
 
   Self.SendEvent.SetEvent;
@@ -265,17 +272,17 @@ var
   I: Integer;
   L: TList;
 begin
-  L := Self.Server.Threads.LockList;
+  L := Self.Server.Contexts.LockList;
   try
     for I := 0 to L.Count - 1 do begin
       try
-        TIdPeerThread(L[I]).Connection.Write(S);
+        TIdContext(L[I]).Connection.Socket.Write(S);
       except
         on EIdConnClosedGracefully do;
       end;
     end;
   finally
-    Self.Server.Threads.UnlockList;
+    Self.Server.Contexts.UnlockList;
   end;
 end;
 
@@ -303,16 +310,20 @@ end;
 
 //* TestTClientTcpConnectionActor Private methods ******************************
 
-procedure TestTClientTcpConnectionActor.AckConnection(Thread: TIdPeerThread);
+procedure TestTClientTcpConnectionActor.AckConnection(Context: TIdContext);
+var
+  Binding: TIdSocketHandle;
 begin
   // Here I thought this callback ran just once per connection, but it's running
   // a metric kajillion times per connection. Thus, LastClientPort allows us to
   // set ConnEvent ONCE per unique connection (almost).
 
-  if not Thread.Connection.Connected then Exit;
+  if not Context.Connection.Connected then
+    Exit;
 
-  if (Thread.Connection.Socket.Binding.PeerPort <> Self.LastClientPort) then begin
-    Self.LastClientPort := Thread.Connection.Socket.Binding.PeerPort;
+  Binding := Context.Connection.Socket.Binding;
+  if (Binding.PeerPort <> Self.LastClientPort) then begin
+    Self.LastClientPort := Binding.PeerPort;
     Self.ConnEvent.SetEvent;
   end;
 end;
@@ -371,7 +382,7 @@ begin
   Self.Connect;
 
   Self.Disconnect;
-
+  
   Check(not Self.Connection.Connected, 'Connection not closed');
 end;
 
@@ -479,19 +490,24 @@ end;
 
 //* TestTClientTcpConnectionActorInterface Private methods *********************
 
-procedure TestTClientTcpConnectionActorInterface.AckConnection(Peer: TIdPeerThread);
+procedure TestTClientTcpConnectionActorInterface.AckConnection(
+  Context: TIdContext);
+var
+  Binding: TIdSocketHandle;
 begin
-  Self.ClientAddress := Peer.Connection.Socket.Binding.PeerIP;
-  Self.ClientPort    := Peer.Connection.Socket.Binding.PeerPort;
+  Binding := Context.Connection.Socket.Binding;
+  Self.ClientAddress := Binding.PeerIP;
+  Self.ClientPort    := Binding.PeerPort;
 
   Self.ConnectEvent.SetEvent;
 end;
 
-procedure TestTClientTcpConnectionActorInterface.RecordData(Peer: TIdPeerThread);
+procedure TestTClientTcpConnectionActorInterface.RecordData(
+  Context: TIdContext);
 const
   MoreThanTestDataLength = 1024;
 begin
-  Self.ReceivedData := Peer.Connection.ReadString(Length(Self.TestData));
+  Self.ReceivedData := Context.Connection.Socket.ReadString(Length(Self.TestData));
 
   Self.DataEvent.SetEvent;
 end;

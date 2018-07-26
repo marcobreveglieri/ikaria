@@ -807,7 +807,9 @@ begin
 
     // Even though we don't use I it is illegal to just have an expression,
     // except for Delphi 2006 and newer.
+    {$HINTS ON}
     I := 1 div TIntegerTerm(Msg.Parameters[0]).Value;
+    {$HINTS OFF}
   finally
     Msg.Free;
   end;

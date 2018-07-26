@@ -46,7 +46,7 @@ unit Ikaria;
 interface
 
 uses
-  Classes, Contnrs, SyncObjs, SysUtils;
+  Classes, Types, Contnrs, SyncObjs, SysUtils;
 
 type
   TActor = class;
@@ -57,7 +57,7 @@ type
   public
     function AsString: String; virtual;
     function Copy: TTerm; virtual;
-    function Equals(Other: TTerm): Boolean; virtual;
+    function Equals(Other: TTerm): Boolean; reintroduce; virtual;
     function IsBoolean: Boolean; virtual;
     function IsInteger: Boolean; virtual;
     function IsProcessID: Boolean; virtual;
@@ -2285,7 +2285,7 @@ begin
   finally
     Self.Unlock;
   end;
-  R.Resume;
+  R.Start;
 end;
 
 procedure TThreadedActorEnvironment.Deactivate(L: TStringList);

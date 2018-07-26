@@ -1,9 +1,9 @@
 object PingPongDemo: TPingPongDemo
   Left = 192
   Top = 103
-  Width = 870
-  Height = 640
   Caption = 'Ping Pong Demo'
+  ClientHeight = 601
+  ClientWidth = 854
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -16,11 +16,12 @@ object PingPongDemo: TPingPongDemo
   object Panel1: TPanel
     Left = 0
     Top = 0
-    Width = 862
+    Width = 854
     Height = 25
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
+    ExplicitWidth = 862
     object StartPing: TButton
       Left = 0
       Top = 0
@@ -95,8 +96,8 @@ object PingPongDemo: TPingPongDemo
   object Log: TMemo
     Left = 0
     Top = 25
-    Width = 862
-    Height = 588
+    Width = 854
+    Height = 576
     Align = alClient
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
@@ -106,5 +107,7 @@ object PingPongDemo: TPingPongDemo
     ParentFont = False
     ScrollBars = ssVertical
     TabOrder = 1
+    ExplicitWidth = 862
+    ExplicitHeight = 588
   end
 end
