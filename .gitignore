@@ -2,3 +2,5 @@ __history/
 *.dcu
 *.dproj.local
 *.exe
+*.identcache
+*.stat
